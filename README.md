@@ -26,7 +26,7 @@ The message flow can be viewed in the osw1 and osw2 container logs.
 
 #### 0. Refer to the code in /example/host at all stages, it really helps.
 
-#### 1. We need to describe our gRPC service and messages in .proto format and compile the .proto into PHP classes
+### 1. We need to describe our gRPC service and messages in .proto format and compile the .proto into PHP classes
 (for a more detailed explanation, see the gRPC tutorials)
 
 Let's describe a simple symmetric host-to-host protocol. Two servers exchange messages, each message has a sender's nickname and text. That's it.
