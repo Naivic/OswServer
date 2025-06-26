@@ -1,0 +1,54 @@
+<head>
+<script>
+conn = new WebSocket(
+    "ws://" + window.location.host
+);
+conn.onmessage = (event) => {
+    var log = document.getElementById( 'log' );
+    var msg = JSON.parse(event.data);
+    if( msg.name === null ) {
+        log.innerHTML += '<br><span style = "color:red; font-size:smaller; padding-left:4em;">' + esc(msg.text) + '</span>';
+    } else {
+        log.innerHTML += '<br><br>Message from ' + esc(msg.name) + '<br>' + esc(msg.text);
+    }
+};
+function sendMessage() {
+    var msg = document.getElementById('message');
+    if( msg.value.trim() == '' ) return;
+    var log = document.getElementById( 'log' );
+    log.innerHTML += "<br><br>Message from me:<br>" + esc(msg.value);
+    var n = document.getElementById('username');
+    var packet = {
+        name: n.value,
+        text: msg.value
+    };
+    if( !conn ) conn = new WebSocket("ws://" + window.location.host);
+    conn.send( JSON.stringify(packet) );
+    msg.value = '';
+}
+function checkEnter( e ) {
+    if( e.keyCode === 13 && !e.shiftKey ) {
+        e.preventDefault();
+        sendMessage();
+    }
+}
+function esc( str ) {
+    return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;")
+        .replace(/\n/g, "<br>")
+    ;
+}
+</script>
+</head>
+
+<body>
+Your name: <input type = "text" id = "username" value = "">
+<div id = "log" style = "width:100%;height:80%;overflow-x:hidden;overflow-y:auto;"></div>
+<hr>
+<textarea id = "message" placeholder="Type and press [enter]" rows="2" cols="40" onKeypress="checkEnter(event)"></textarea>
+<input type = "button" value = "Send" onClick="sendMessage()" style = "padding-bottom:1em;vertical-align:top;">
+</body>

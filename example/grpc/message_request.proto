@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package grpc.interconnect;
+
+message MessageRequest {
+    string name = 1;
+    string message = 2;
+}

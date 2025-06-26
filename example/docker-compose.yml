@@ -1,0 +1,51 @@
+name: oswserver
+services:
+    protoc:
+        container_name: protoc_osw
+        image: openswoole/protoc
+        volumes:
+            - ./grpc:/app
+    osw1:
+        container_name: osw1
+        image: openswoole/swoole:latest
+        entrypoint:
+            - php
+            - /app/server.php
+        ports:
+            - "12080:8080"
+        volumes:
+            - ./host:/app
+        environment:
+            PEER : "172.27.1.11"
+        networks:
+            world:
+            backend:
+                ipv4_address: 172.27.1.12
+    osw2:
+        container_name: osw2
+        image: openswoole/swoole:latest
+        entrypoint:
+            - php
+            - /app/server.php
+        ports:
+            - "11080:8080"
+        volumes:
+            - ./host:/app
+        environment:
+            PEER : "172.27.1.12"
+        networks:
+            world:
+            backend:
+                ipv4_address: 172.27.1.11
+networks:
+    world:
+        driver: bridge
+        driver_opts:
+            com.docker.network.bridge.host_binding_ipv4: "127.0.0.1"
+    backend:
+        internal: true
+        ipam:
+            driver: default
+            config:
+                - subnet: "172.27.1.0/24"
+

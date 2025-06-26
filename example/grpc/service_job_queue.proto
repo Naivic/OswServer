@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package grpc.interconnect;
+
+import "message_request.proto";
+import "message_response.proto";
+
+service Host {
+    rpc Message(MessageRequest) returns (MessageResponse);
+}
