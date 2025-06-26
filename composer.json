@@ -1,0 +1,21 @@
+{
+    "name": "naivic/oswserver",
+    "description": "Naivic OpenSwoole-based Universal gRPC+HTTP+Websocket Server",
+    "keywords": ["OpenSwoole Server HTTP WebSocket GRPC"],
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Naivic",
+            "email": "andrei.r715d@gmail.com"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "Naivic\\": "src/Naivic"
+        }
+    },
+    "require": {
+        "php": ">=7.1"
+    }
+}
