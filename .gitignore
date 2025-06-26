@@ -1,2 +1,6 @@
 composer.lock
 */*.bat
+example/grpc/out
+example/host/vendor
+
+

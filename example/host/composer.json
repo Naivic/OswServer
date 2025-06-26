@@ -5,7 +5,7 @@
         }
     },
     "require": {
-        "naivic/oswserver": "^0.9",
+        "naivic/oswserver": ">0.9",
         "openswoole/core": "^22.2",
         "openswoole/grpc": "^22.1",
         "google/protobuf": "^4.30",
