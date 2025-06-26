@@ -93,7 +93,7 @@ class OswServer {
     }
 
     public function onStart( \OpenSwoole\HTTP\Server $server ) {
-        \OpenSwoole\Util::LOG(\OpenSwoole\Constant::LOG_INFO, sprintf("\033[32m%s\033[0m", "OwsServer (OpenSwoole GRPC+HTTP+WebSocket Server) is started, {$this->host}:{$this->port}"));
+        \OpenSwoole\Util::LOG(\OpenSwoole\Constant::LOG_INFO, sprintf("\033[32m%s\033[0m", "OswServer (OpenSwoole GRPC+HTTP+WebSocket Server) is started, {$this->host}:{$this->port}"));
     }
 
     public function onOpen(\OpenSwoole\Server $server, \OpenSwoole\Http\Request $request) {
