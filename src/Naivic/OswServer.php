@@ -115,7 +115,7 @@ class OswServer {
     }
 
     public function addListener( string $host, int $port = 0, int $sockType = \OpenSwoole\Constant::SOCK_TCP ) {
-        \OpenSwoole\Util::LOG(\OpenSwoole\Constant::LOG_INFO, sprintf("\033[32m%s\033[0m", "Add Listener to OwsServer, {$host}:{$port}"));
+        \OpenSwoole\Util::LOG(\OpenSwoole\Constant::LOG_INFO, sprintf("\033[32m%s\033[0m", "Add Listener to OswServer, {$host}:{$port}"));
         $this->server->addListener( $host, $port, $sockType );
         return $this;
     }
