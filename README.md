@@ -20,13 +20,19 @@ You will see your message in first tab as 'Message from me', and in the second t
 
 Repeat this in the second tab, with another name and another message - and see your message in both tabs.
 
+You can also test connection/disconnection situations by stopping/restarting containers and closing/reopening browser tabs.
+
 The message flow can be viewed in the osw1 and osw2 container logs.
 
 ## Basic use case of OswServer
 
-#### 0. Refer to the code in /example/host at all stages, it really helps.
+### 0. See the code example
 
-### 1. We need to describe our gRPC service and messages in .proto format and compile the .proto into PHP classes
+Refer to the code in /example/host at all stages, it really helps.
+
+### 1. Design a gRPC service
+
+We need to describe our gRPC service and messages in .proto format and compile the .proto into PHP classes
 (for a more detailed explanation, see the gRPC tutorials)
 
 Let's describe a simple symmetric host-to-host protocol. Two servers exchange messages, each message has a sender's nickname and text. That's it.
@@ -51,7 +57,9 @@ service Host {
 }
 ```
 
-### 2. We need to write our code in gRPC service class.
+### 2. Add code to gRPC service class
+
+We need to write our code in gRPC service class.
 
 Just send a message from gRPC peer to our websocket client.
 
@@ -83,7 +91,9 @@ class HostService implements HostInterface
 }
 ```
 
-### 3. We need to define our main server class, which will do all the work. This class should be a child of \Naivic\OswClass.
+### 3. Create main server class
+
+We need to define our main server class, which will do all the work. This class should be a child of \Naivic\OswClass.
 
 ```php
 class MyServer extends \Naivic\OswServer {
@@ -115,7 +125,9 @@ class MyServer extends \Naivic\OswServer {
 }
 ```
 
-### 4. We need to define two methods to manage WebSocket client connection IDs:
+### 4. Add code to manage client connections
+
+We need to define two methods to manage WebSocket client connection IDs:
    + onOpen - to store the client connection ID when opening a connection
    + onClose - to clear the client connection ID when closing a connection
 
@@ -143,7 +155,9 @@ class MyServer extends \Naivic\OswServer {
 }
 ```
 
-### 5. We need to define our processing methods:
+### 5. Add code to handle HTTP and Websocket requests
+
+We need to define our processing methods:
    + processRequestHttp() - for HTTP requests processing;
    + processRequestWs() - for WebSocket requests processing.
 
@@ -198,11 +212,14 @@ And process message from client.
             }
         } catch ( \Throwable $e ) {
             \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, "Client's message '{$frame->data}' was not sent to peer {$this->peer} because of gRPC exception: ".$e->getMessage() );
+            $this->server->push( $this->fd, json_encode( ["name" => null, "text" => "message not delivered, server is currently offline"] ) );
         }
     }
 ```
 
-### 6. We need a method to deliver a message from a peer to our client - sendMsgToClient(), mentioned in our OpenSwoole\GRPC\HostService::Message()
+### 6. Add code to route messages from peer to client
+
+We need a method to deliver a message from a peer to our client - sendMsgToClient(), mentioned in our OpenSwoole\GRPC\HostService::Message()
 
 ```php
 class MyServer extends \Naivic\OswServer {
@@ -224,7 +241,9 @@ class MyServer extends \Naivic\OswServer {
 }
 ```
 
-### 7. (Optional) If we want make some custom processing of gRPC requests - we can add the optional processRequestGrpc() method.
+### 7. (Optional) Add code to custom gRPC processing
+
+If we want make some custom processing of gRPC requests - we can add the optional processRequestGrpc() method.
 
 ```php
 
@@ -239,7 +258,9 @@ class MyServer extends \Naivic\OswServer {
 
 ```
 
-### 8. We start our server in usual \OpenSwoole\GRPC\Server manner.
+### 8. Start main server
+
+We start our server in usual \OpenSwoole\GRPC\Server manner.
 
 ```php
 $serv = (new \MyServer('0.0.0.0', MyServer::PORT_GRPC)
@@ -265,5 +286,7 @@ $serv = (new \MyServer('0.0.0.0', MyServer::PORT_GRPC)) // gRPC
 ;
 ```
 
-### 9. You can easily extend this code to achieve your own goals. Good Luck!
+### 9. Add spices to taste
+
+You can easily extend this code to achieve your own goals. Good Luck!
 

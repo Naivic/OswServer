@@ -1,28 +1,42 @@
 <head>
 <script>
-conn = new WebSocket(
-    "ws://" + window.location.host
-);
-conn.onmessage = (event) => {
-    var log = document.getElementById( 'log' );
-    var msg = JSON.parse(event.data);
-    if( msg.name === null ) {
-        log.innerHTML += '<br><span style = "color:red; font-size:smaller; padding-left:4em;">' + esc(msg.text) + '</span>';
-    } else {
-        log.innerHTML += '<br><br>Message from ' + esc(msg.name) + '<br>' + esc(msg.text);
+function renewSocket() {
+    conn = new WebSocket( "ws://" + window.location.host );
+    if( conn  ) {
+        conn.onopen = (event) => {
+            document.getElementById( 'indicator' ).innerHTML = '<div style="width:100%;height:100%;background:green;">Connected</div>';
+        }
+        conn.onclose = (event) => {
+            document.getElementById( 'indicator' ).innerHTML = '<div style="width:100%;height:100%;background:red;color:white;">Disconnected</div>';
+            setTimeout( renewSocket, 1000 );
+        }
+        conn.onmessage = (event) => {
+            var log = document.getElementById( 'log' );
+            var msg = JSON.parse(event.data);
+            if( msg.name === null ) {
+                log.innerHTML += '<br><span style = "color:red; font-size:smaller; padding-left:4em;">' + esc(msg.text) + '</span>';
+            } else {
+                log.innerHTML += '<br><br>Message from ' + esc(msg.name) + '<br>' + esc(msg.text);
+            }
+            log.scrollTop = log.scrollHeight;
+        };
     }
-};
+}
 function sendMessage() {
+    if( !conn  || conn.readyState !== WebSocket.OPEN ) {
+        alert( 'cannot connect server' );
+        return;
+    }
     var msg = document.getElementById('message');
     if( msg.value.trim() == '' ) return;
     var log = document.getElementById( 'log' );
     log.innerHTML += "<br><br>Message from me:<br>" + esc(msg.value);
+    log.scrollTop = log.scrollHeight;
     var n = document.getElementById('username');
     var packet = {
         name: n.value,
         text: msg.value
     };
-    if( !conn ) conn = new WebSocket("ws://" + window.location.host);
     conn.send( JSON.stringify(packet) );
     msg.value = '';
 }
@@ -42,10 +56,12 @@ function esc( str ) {
         .replace(/\n/g, "<br>")
     ;
 }
+renewSocket();
 </script>
 </head>
 
 <body>
+<span id = "indicator" style = "width:10em;height:1.3em; display:inline-block;text-align:center;"></span>
 Your name: <input type = "text" id = "username" value = "">
 <div id = "log" style = "width:100%;height:80%;overflow-x:hidden;overflow-y:auto;"></div>
 <hr>

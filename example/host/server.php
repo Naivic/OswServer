@@ -94,6 +94,7 @@ class MyServer extends \Naivic\OswServer {
             }
         } catch ( \Throwable $e ) {
             \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, "Client's message '{$frame->data}' was not sent to peer {$this->peer} because of gRPC exception: ".$e->getMessage() );
+            $this->server->push( $this->fd, json_encode( ["name" => null, "text" => "message not delivered, server is currently offline"] ) );
         }
     }
 
