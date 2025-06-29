@@ -1,22 +1,67 @@
 <head>
+<style type="text/css">
+    #log {
+        width:100%;
+        height:80%;
+        margin:1em 0;
+        overflow-x:hidden;
+        overflow-y:auto;
+        border-top:1px solid black;
+        border-bottom:1px solid black;
+        background:#F0F0F0;
+    }
+    #send {
+        padding-bottom:1em;
+        vertical-align:top;
+    }
+    #indicator {
+        width:10em;
+        height:1.3em;
+        display:inline-block;
+        text-align:center;
+        vertical-align:center;
+    }
+    #indicator div {
+        width:100%;
+        height:100%;
+        color:white;
+    }
+    div.connected {
+        background:green;
+    }
+    div.disconnected {
+        background:red;
+    }
+    span.error {
+        padding-left:4em;
+        color:red;
+        font-size:smaller;
+    }
+    span.info {
+        padding-left:4em;
+        color:blue;
+        font-size:smaller;
+    }
+</style>
 <script>
+conn = null;
 function renewSocket() {
     conn = new WebSocket( "ws://" + window.location.host );
-    if( conn  ) {
+    if( conn ) {
         conn.onopen = (event) => {
-            document.getElementById( 'indicator' ).innerHTML = '<div style="width:100%;height:100%;background:green;">Connected</div>';
+            document.getElementById( 'indicator' ).innerHTML = '<div class = "connected">Connected</div>';
         }
         conn.onclose = (event) => {
-            document.getElementById( 'indicator' ).innerHTML = '<div style="width:100%;height:100%;background:red;color:white;">Disconnected</div>';
+            document.getElementById( 'indicator' ).innerHTML = '<div class = "disconnected">Disconnected</div>';
             setTimeout( renewSocket, 1000 );
         }
         conn.onmessage = (event) => {
             var log = document.getElementById( 'log' );
             var msg = JSON.parse(event.data);
-            if( msg.name === null ) {
-                log.innerHTML += '<br><span style = "color:red; font-size:smaller; padding-left:4em;">' + esc(msg.text) + '</span>';
-            } else {
+            if( msg.type === undefined ) {
                 log.innerHTML += '<br><br>Message from ' + esc(msg.name) + '<br>' + esc(msg.text);
+            } else {
+                log.innerHTML += '<br><span class = "' + msg.type + '">' + esc(msg.text) + '</span>';
             }
             log.scrollTop = log.scrollHeight;
         };
@@ -61,10 +106,9 @@ renewSocket();
 </head>
 
 <body>
-<span id = "indicator" style = "width:10em;height:1.3em; display:inline-block;text-align:center;"></span>
+<span id = "indicator"></span>
 Your name: <input type = "text" id = "username" value = "">
-<div id = "log" style = "width:100%;height:80%;overflow-x:hidden;overflow-y:auto;"></div>
-<hr>
+<div id = "log"></div>
 <textarea id = "message" placeholder="Type and press [enter]" rows="2" cols="40" onKeypress="checkEnter(event)"></textarea>
-<input type = "button" value = "Send" onClick="sendMessage()" style = "padding-bottom:1em;vertical-align:top;">
+<input id = "send" type = "button" value = "Send" onClick="sendMessage()">
 </body>

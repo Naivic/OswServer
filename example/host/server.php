@@ -11,7 +11,6 @@ class MyServer extends \Naivic\OswServer {
     const PORT_HTTP = 8080;
 
     public $peer = null;
-    public $fd = null;
 
     public function onStart( \OpenSwoole\HTTP\Server $server ) {
         // Get gRPC peer IP from environment variable
@@ -22,26 +21,25 @@ class MyServer extends \Naivic\OswServer {
         parent::onStart( $server );
     }
 
-    public function onOpen( \OpenSwoole\Server $server, \OpenSwoole\Http\Request $request ) {
-        \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, "Client connection open: {$request->fd}" );
-        if( $this->fd === null ) $this->fd = $request->fd; // Store ID
-    }
-
-    public function onClose( \OpenSwoole\Server $server, int $fd ) {
-        \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, "Client connection close: {$fd}" );
-        if( $this->fd === $fd ) $this->fd = null; // Clear ID
-    }
-
     public function sendMsgToClient( $name, $text, $ip ) {
-        if( $this->fd === null ) {
+        $sent = 0;
+        foreach( $this->server->connections as $conn ) {
+            if( $this->server->isEstablished($conn) ) {
+                if( $this->server->push( $conn, json_encode([ "name" => $name, "text" => $text]) ) ) {
+                    $sent++;
+                    $msg = "Message '$text' from peer {$ip} was sent to client connection {$conn}";
+                    \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, $msg );
+                } else {
+                    \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, "Cannot push message to client connection {$conn}" );
+                }
+            }
+        }
+        if( $sent == 0 ) {
             $msg = "Message '$text' from peer {$ip} was not sent to client, because connection was closed";
             \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, $msg );
             return [false, $msg];
         }
-        $this->server->push( $this->fd, json_encode([ "name" => $name, "text" => $text]) );
-        $msg = "Message '$text' from peer {$ip} was sent to client connection {$this->fd}";
-        \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, $msg );
-        return [true, $msg];
+        return [true, "The message has been sent to {$sent} client connection".($sent>1?'s':'')];
     }
 
     public function processRequestGrpc( \OpenSwoole\GRPC\Context $context, \OpenSwoole\HTTP\Request $rawRequest, \OpenSwoole\HTTP\Response $rawResponse ) {
@@ -70,7 +68,11 @@ class MyServer extends \Naivic\OswServer {
         }
         \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, "Have got HTTP Request $path on valid port {$info["server_port"]}" );
         switch( $path ) {
-            case "/" : (new \Http\Root)->root( $rawRequest, $rawResponse ); break;
+            case "/" :
+                $fname = dirname(__FILE__).'/root.html';
+                $rawResponse->write( file_get_contents( $fname ) );
+                $rawResponse->status(200, "OK");
+                break;
             default  : $rawResponse->status(404, "Not Found");
         }
         $rawResponse->end();
@@ -80,21 +82,22 @@ class MyServer extends \Naivic\OswServer {
         \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, "Received message from client: '{$frame->data}'" );
         $json = json_decode( $frame->data, true );
         $message = new \Grpc\Interconnect\MessageRequest();
-        $message->setMessage( $json['text'] );
-        $message->setName( $json['name'] );
+        $message->setMessage( $json['text']??'' );
+        $message->setName( $json['name']??'' );
         try {
             $conn = (new \OpenSwoole\GRPC\Client( $this->peer, static::PORT_GRPC ))->connect();
             $out = (new \Grpc\Interconnect\HostClient( $conn ))->Message( $message );
             $conn->close();
             if( $out->getSuccess() ) {
-                \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, "Client's message '{$frame->data}' was sent to peer {$this->peer}" );
+                \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, "Client's message '{$frame->data}' was sent to peer {$this->peer}, peer response: '{$out->getMessage()}'" );
+                $this->server->push( $frame->fd, json_encode( ["type" => "info", "text" => $out->getMessage() ] ) );
             } else {
                 \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, "Client's message '{$frame->data}' was not accepted by peer {$this->peer}, peer reason: '{$out->getMessage()}'" );
-                $this->server->push( $this->fd, json_encode( ["name" => null, "text" => "message not delivered, user is currently disconnected"] ) );
+                $this->server->push( $frame->fd, json_encode( ["type" => "error", "text" => "message not delivered, user is currently disconnected"] ) );
             }
         } catch ( \Throwable $e ) {
             \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, "Client's message '{$frame->data}' was not sent to peer {$this->peer} because of gRPC exception: ".$e->getMessage() );
-            $this->server->push( $this->fd, json_encode( ["name" => null, "text" => "message not delivered, server is currently offline"] ) );
+            $this->server->push( $frame->fd, json_encode( ["type" => "error", "text" => "message not delivered, server is currently offline"] ) );
         }
     }
 
