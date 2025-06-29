@@ -104,7 +104,9 @@ class MyServer extends \Naivic\OswServer {
 }
 ```
 
-And we can define an onStart method if we want to do some additional initialization.
+### 4. Define onStart() method to get IP address of peer
+
+We can define an onStart method if we want to do some additional initialization. Here we get the peer IP address from the environment variable.
 
 ```php
 class MyServer extends \Naivic\OswServer {
@@ -120,36 +122,6 @@ class MyServer extends \Naivic\OswServer {
 
         // Call parent class to provide standard initialization (mandatory)
         parent::onStart( $server );
-    }
-
-}
-```
-
-### 4. Add code to manage client connections
-
-We need to define two methods to manage WebSocket client connection IDs:
-   + onOpen - to store the client connection ID when opening a connection
-   + onClose - to clear the client connection ID when closing a connection
-
-Something like this, if you want to maintain only one client connection per server.
-If you need more than one client connection per server - you should identify client,
-ensure that the connection matches a certain client, and make routing for messages to the corresponding client connections.
-
-```php
-class MyServer extends \Naivic\OswServer {
-
-    ...
-
-    public $fd = null;
-
-    public function onOpen( \OpenSwoole\Server $server, \OpenSwoole\Http\Request $request ) {
-        \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, "Client connection open: {$request->fd}" );
-        if( $this->fd === null ) $this->fd = $request->fd; // Store ID
-    }
-
-    public function onClose( \OpenSwoole\Server $server, int $fd ) {
-        \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, "Client connection close: {$fd}" );
-        if( $this->fd === $fd ) $this->fd = null; // Clear ID
     }
 
 }
@@ -184,8 +156,12 @@ For example, make loading of the root html page.
         $path = $context->getValue( 'path' );
         \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, "Have got HTTP Request $path" );
         switch( $path ) {
-            case "/" : (new \Http\Root)->root( $rawRequest, $rawResponse ); break;
-            default  : $rawResponse->status( 404, "Not Found" );
+            case "/" :
+                $fname = dirname(__FILE__).'/root.html';
+                $rawResponse->write( file_get_contents( $fname ) );
+                $rawResponse->status(200, "OK");
+                break;
+            default  : $rawResponse->status(404, "Not Found");
         }
         $rawResponse->end();
     }
@@ -198,8 +174,8 @@ And process message from client.
         \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, "Received message from client: '{$frame->data}'" );
         $json = json_decode( $frame->data, true );
         $message = new \Grpc\Interconnect\MessageRequest();
-        $message->setMessage( $json['text'] );
-        $message->setName( $json['name'] );
+        $message->setMessage( $json['text']??'' );
+        $message->setName( $json['name']??'' );
         try {
             $conn = (new \OpenSwoole\GRPC\Client( $this->peer, static::PORT_GRPC ))->connect();
             $out = (new \Grpc\Interconnect\HostClient( $conn ))->Message( $message );
@@ -208,11 +184,11 @@ And process message from client.
                 \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, "Client's message '{$frame->data}' was sent to peer {$this->peer}" );
             } else {
                 \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, "Client's message '{$frame->data}' was not accepted by peer {$this->peer}, peer reason: '{$out->getMessage()}'" );
-                $this->server->push( $this->fd, json_encode( ["name" => null, "text" => "message not delivered, user is currently disconnected"] ) );
+                $this->server->push( $frame->fd, json_encode( ["name" => null, "text" => "message not delivered, user is currently disconnected"] ) );
             }
         } catch ( \Throwable $e ) {
             \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, "Client's message '{$frame->data}' was not sent to peer {$this->peer} because of gRPC exception: ".$e->getMessage() );
-            $this->server->push( $this->fd, json_encode( ["name" => null, "text" => "message not delivered, server is currently offline"] ) );
+            $this->server->push( $frame->fd, json_encode( ["name" => null, "text" => "message not delivered, server is currently offline"] ) );
         }
     }
 ```
@@ -227,21 +203,30 @@ class MyServer extends \Naivic\OswServer {
     ...
 
     public function sendMsgToClient( $name, $text, $ip ) {
-        if( $this->fd === null ) {
+        $sent = 0;
+        foreach( $this->server->connections as $conn ) {
+            if( $this->server->isEstablished($conn) ) {
+                if( $this->server->push( $conn, json_encode([ "name" => $name, "text" => $text]) ) ) {
+                    $sent++;
+                    $msg = "Message '$text' from peer {$ip} was sent to client connection {$conn}";
+                    \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, $msg );
+                } else {
+                    \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, "Cannot push message to client connection {$conn}" );
+                }
+            }
+        }
+        if( $sent == 0 ) {
             $msg = "Message '$text' from peer {$ip} was not sent to client, because connection was closed";
             \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, $msg );
             return [false, $msg];
         }
-        $this->server->push( $this->fd, json_encode([ "name" => $name, "text" => $text]) );
-        $msg = "Message '$text' from peer {$ip} was sent to client connection {$this->fd}";
-        \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, $msg );
-        return [true, $msg];
+        return [true, "The message has been sent to {$sent} client connection".($sent>1?'s':'')];
     }
 
 }
 ```
 
-### 7. (Optional) Add code to custom gRPC processing
+### 7. (Optional) Add code to custom gRPC processing and manage Websocket client connections
 
 If we want make some custom processing of gRPC requests - we can add the optional processRequestGrpc() method.
 
@@ -254,6 +239,20 @@ If we want make some custom processing of gRPC requests - we can add the optiona
 
         // Call parent class to provide standatd request processing
         parent::processRequestGrpc( $context, $rawRequest, $rawResponse );
+    }
+
+```
+
+And we can add some code to manage client connections.
+
+```php
+
+    public function onOpen( \OpenSwoole\Server $server, \OpenSwoole\Http\Request $request ) {
+        \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, "Client connection registered: {$request->fd}" );
+    }
+
+    public function onClose( \OpenSwoole\Server $server, int $fd ) {
+        \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, "Client connection close: {$fd}" );
     }
 
 ```
