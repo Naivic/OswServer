@@ -58,11 +58,15 @@ function renewSocket() {
         conn.onmessage = (event) => {
             var log = document.getElementById( 'log' );
             var msg = JSON.parse(event.data);
-            if( msg.type === undefined ) {
-                log.innerHTML += '<br><br>Message from ' + esc(msg.name) + '<br>' + esc(msg.text);
-            } else {
-                log.innerHTML += '<br><span class = "' + msg.type + '">' + esc(msg.text) + '</span>';
+            var txt = '';
+            switch( msg.type ) {
+                case "echo" : txt = "<br><br>Message from me:<br>" + esc(msg.text);
+                    break;
+                case "msg" : txt = '<br><br>Message from ' + esc(msg.name) + '<br>' + esc(msg.text);
+                    break;
+                default : txt = '<br><span class = "' + msg.type + '">' + esc(msg.text) + '</span>';
             }
+            log.innerHTML += txt;
             log.scrollTop = log.scrollHeight;
         };
     }

@@ -21,22 +21,24 @@ class MyServer extends \Naivic\OswServer {
         parent::onStart( $server );
     }
 
-    public function sendMsgToClient( $name, $text, $ip ) {
+    public function sendMsgToClient( $type, $name, $text, $ip, $skip ) {
         $sent = 0;
         foreach( $this->server->connections as $conn ) {
-            if( $this->server->isEstablished($conn) ) {
-                if( $this->server->push( $conn, json_encode([ "name" => $name, "text" => $text]) ) ) {
-                    $sent++;
-                    $msg = "Message '$text' from peer {$ip} was sent to client connection {$conn}";
-                    \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, $msg );
-                } else {
-                    \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, "Cannot push message to client connection {$conn}" );
+            if( $conn !== $skip ) {
+                if( $this->server->isEstablished($conn) ) {
+                    if( $this->server->push( $conn, json_encode([ "type" => $type, "name" => $name, "text" => $text]) ) ) {
+                        $sent++;
+                        $log = "Message type '$type' with text '$text' from {$ip} was sent to client connection {$conn}";
+                        \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, $log );
+                    } else {
+                        \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, "Cannot push message to client connection {$conn}" );
+                    }
                 }
             }
         }
         if( $sent == 0 ) {
-            $msg = "Message '$text' from peer {$ip} was not sent to client, because connection was closed";
-            \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, $msg );
+            $log = "Message type '$type' with text '$text' from {$ip} was not sent to client, because connection was closed";
+            \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, $log );
             return [false, $msg];
         }
         return [true, "The message has been sent to {$sent} client connection".($sent>1?'s':'')];
@@ -84,20 +86,21 @@ class MyServer extends \Naivic\OswServer {
         $message = new \Grpc\Interconnect\MessageRequest();
         $message->setMessage( $json['text']??'' );
         $message->setName( $json['name']??'' );
+        $this->sendMsgToClient( "echo", "", $message->getMessage(), 'localhost', $frame->fd );
         try {
             $conn = (new \OpenSwoole\GRPC\Client( $this->peer, static::PORT_GRPC ))->connect();
             $out = (new \Grpc\Interconnect\HostClient( $conn ))->Message( $message );
             $conn->close();
             if( $out->getSuccess() ) {
                 \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, "Client's message '{$frame->data}' was sent to peer {$this->peer}, peer response: '{$out->getMessage()}'" );
-                $this->server->push( $frame->fd, json_encode( ["type" => "info", "text" => $out->getMessage() ] ) );
+                $this->sendMsgToClient( "info", "", $out->getMessage(), 'localhost', null );
             } else {
                 \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, "Client's message '{$frame->data}' was not accepted by peer {$this->peer}, peer reason: '{$out->getMessage()}'" );
-                $this->server->push( $frame->fd, json_encode( ["type" => "error", "text" => "message not delivered, user is currently disconnected"] ) );
+                $this->sendMsgToClient( "error", "", "message not delivered, user is currently disconnected", 'localhost', null );
             }
         } catch ( \Throwable $e ) {
             \OpenSwoole\Util::LOG( \OpenSwoole\Constant::LOG_INFO, "Client's message '{$frame->data}' was not sent to peer {$this->peer} because of gRPC exception: ".$e->getMessage() );
-            $this->server->push( $frame->fd, json_encode( ["type" => "error", "text" => "message not delivered, server is currently offline"] ) );
+            $this->sendMsgToClient( "error", "", "message not delivered, server is currently offline", 'localhost', null );
         }
     }
 

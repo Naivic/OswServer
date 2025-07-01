@@ -23,7 +23,7 @@ class HostService implements HostInterface
         $serv = $ctx->getValue( 'WORKER_CONTEXT' )->getValue( \MyServer::class );
 
         // Send message to client via websocket connection
-        [$success, $msg] = $serv->sendMsgToClient( $request->getName(), $request->getMessage(), $ip );
+        [$success, $msg] = $serv->sendMsgToClient( "msg", $request->getName(), $request->getMessage(), $ip, null );
 
         // Reply to gRPC peer
         $message = new \Grpc\Interconnect\MessageResponse();
